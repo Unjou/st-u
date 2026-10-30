@@ -1,4 +1,4 @@
-# <p align="center">**st&u — Claim Traceability & Verification Demo**</p>
+# <p align="center">**st&u**</p>
 
 <p align="center">
   <em>An evidence-first claim exploration prototype linking everyday health statements to verified academic literature.</em>
