@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/logo.png" alt="st&u Logo" width="180" />
+  <img src="doc/assets/logo.png" alt="st&u Logo" width="180" />
 </p>
 
 <p align="center">
@@ -23,7 +23,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/banner jpg" alt="st&u Preview Banner" width="100%" />
+  <img src="doc/assets/banner jpg" alt="st&u Preview Banner" width="100%" />
 </p>
 
 ---
