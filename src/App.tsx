@@ -27,7 +27,7 @@ export default function App() {
       <main className="demo-main">
         <section className="demo-intro">
           <p className="demo-kicker">Ruang investigasi · versi demo</p>
-          <h1>Periksa jejaknya<span>.</span></h1>
+          <h1>Periksa<span>.</span></h1>
           <p className="demo-lead">
             Contoh alur pemeriksaan klaim nonpolitik dan pencarian literatur. Tidak ada layanan AI
             atau API yang dipanggil.
@@ -44,7 +44,7 @@ export default function App() {
             maxLength={1000}
           />
           <div className="demo-form__actions">
-            <button className="demo-primary" type="submit">Tampilkan simulasi</button>
+            <button className="demo-primary" type="submit">Tampilkan</button>
             <button className="demo-secondary" type="button" onClick={resetExample}>Pakai contoh awal</button>
           </div>
           <p className="demo-small">Mengubah klaim hanya mengubah contoh tampilan, bukan menjalankan verifikasi.</p>
