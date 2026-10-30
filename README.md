@@ -1,7 +1,9 @@
-# <p align="center">**st&u**</p>
+<p align="center">
+  <img src="{{DATA:IMAGE:IMAGE_6}}" alt="st&u Logo" width="180" />
+</p>
 
 <p align="center">
-  <em>An evidence-first claim exploration prototype linking everyday health statements to verified academic literature.</em>
+  <em>An evidence-first claim exploration prototype linking everyday health assertions to peer-reviewed scientific literature.</em>
 </p>
 
 <p align="center">
@@ -20,9 +22,13 @@
   <a href="https://github.com/Unjou/st-u"><strong>GitHub Repository »</strong></a>
 </p>
 
+<p align="center">
+  <img src="{{DATA:IMAGE:IMAGE_7}}" alt="st&u Preview Banner" width="100%" />
+</p>
+
 ---
 
-## 📌 Project Overview
+##  Project Overview
 
 **st&u** is an interactive web prototype exploring evidence-based claim verification and research traceability.
 
@@ -124,6 +130,6 @@ To deploy your own instance:
 
 ---
 
-## 📄 License
+##  License
 
 Distributed under the **MIT License**. See `LICENSE` for more information.
