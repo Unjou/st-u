@@ -23,7 +23,7 @@
 </p>
 
 <p align="center">
-  <img src="doc/assets/banner jpg" alt="st&u Preview Banner" width="100%" />
+  <img src="doc/assets/banner.jpg" alt="st&u Preview Banner" width="100%" />
 </p>
 
 ---
