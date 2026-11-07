@@ -1,41 +1,14 @@
+import { useEffect, useState } from "react";
 import "./demo-result.css";
 
-export const DEFAULT_DEMO_CLAIM = "Contoh klaim kesehatan: minuman herbal meningkatkan daya tahan tubuh dalam 24 jam.";
+export const DEFAULT_DEMO_URL = "https://www.who.int/news-room/fact-sheets/detail/healthy-diet";
+type Result = { article_metadata: { title: string; domain: string; extracted_claims: string[] }; category: string; verification_status: string; confidence_score: number; evidence_level: string; dynamic_summary: string; detailed_debunk_reason: string; medical_evidence?: { pubmed_studies_found: { pmid: string; title: string; year: string; pubmed_url: string }[] }; political_evidence?: { media_type: string; dewan_pers_status: string } };
 
-type DemoResultProps = { claim?: string; mode?: "health" | "politics" };
-
-export default function DemoResult({ claim = DEFAULT_DEMO_CLAIM, mode = "health" }: DemoResultProps) {
-  const searchQuery = claim.trim() || DEFAULT_DEMO_CLAIM;
-  const isHealth = mode === "health";
-  const query = encodeURIComponent(searchQuery);
-  const startYear = new Date().getFullYear() - 5;
-  const scholarUrl = `https://scholar.google.com/scholar?q=${query}&as_ylo=${startYear}`;
-  const pubmedUrl = `https://pubmed.ncbi.nlm.nih.gov/?term=${query}&filter=years.${startYear}-${new Date().getFullYear()}`;
-  const cochraneUrl = `https://www.cochranelibrary.com/search?searchText=${query}&publishDateRange=${startYear}%20to%20${new Date().getFullYear()}`;
-
-  return (
-    <section className="demo-result" aria-labelledby="demo-result-title" data-testid="demo-result">
-      <div className="demo-result__banner">Simulasi · bukan hasil verifikasi</div>
-      <div className="demo-result__heading">
-        <div><p className="demo-result__eyebrow">Hasil {isHealth ? "kesehatan" : "politik & media"}</p><h2 id="demo-result-title">{isHealth ? "Belum terbukti klinis" : "Perlu verifikasi"}</h2></div>
-        <span className="demo-result__badge">{isHealth ? "MEDIS" : "POLITIK"}</span>
-      </div>
-      <div className="demo-result__claim"><p className="demo-result__eyebrow">Klaim yang dianalisis</p><p>{searchQuery}</p></div>
-      {isHealth ? (
-        <>
-          <p className="demo-result__notice">Permukaan klaim belum cukup untuk menyimpulkan manfaat. Cari bukti dengan tinjauan sistematis atau uji klinis manusia, bukan hanya hasil lab.</p>
-          <div className="demo-result__details">
-            <div><strong>Lapisan pemeriksaan medis</strong><ul><li>Bandingkan dengan konsensus WHO, BPOM, dan Kemenkes.</li><li>Bedakan studi <em>in vitro</em> / hewan dengan uji klinis manusia.</li><li>Periksa publikasi 5 tahun terakhir dan konflik kepentingan.</li></ul></div>
-            <div className="demo-result__search"><strong>Telusuri jurnal · 5 tahun terakhir</strong><div className="demo-result__links"><a href={scholarUrl} target="_blank" rel="noopener noreferrer">Google Scholar ↗</a><a href={pubmedUrl} target="_blank" rel="noopener noreferrer">PubMed / NCBI ↗</a><a href={cochraneUrl} target="_blank" rel="noopener noreferrer">Cochrane Library ↗</a></div><p>Prioritaskan systematic review, meta-analysis, atau clinical trial.</p></div>
-          </div>
-        </>
-      ) : (
-        <>
-          <p className="demo-result__notice demo-result__notice--politics">Status contoh: <strong>MENYESATKAN / DISINFORMASI</strong>. Domain, sumber primer, dan konteks narasi harus dicek sebelum menyebarkan klaim.</p>
-          <div className="demo-result__details"><div><strong>Integritas media</strong><div className="demo-tags"><span>BIAS</span><span>CEK DOMAIN</span></div><ul><li>Periksa apakah domain terdaftar dan bukan tiruan/kloning.</li><li>Bandingkan dengan Dewan Pers, CekFakta Mafindo, Tempo, dan klarifikasi resmi.</li><li>Uji judul terhadap isi untuk mendeteksi umpan klik.</li></ul></div><div><strong>Ekstraksi klaim politik</strong><ul><li>Tentukan klaim utama dan tanggal peristiwa.</li><li>Cari sumber primer: dokumen lembaga, data resmi, atau pernyataan lengkap.</li><li>Label akhir: BENAR, SALAH / HOAKS, MENYESATKAN, atau TERMANIPULASI.</li></ul></div></div>
-        </>
-      )}
-      <p className="demo-result__footnote">Data ini hanya demonstrasi UI. Bukan putusan medis, hukum, atau verifikasi faktual aktual.</p>
-    </section>
-  );
+export default function DemoResult({ url, mode }: { url: string; mode: "health" | "politics" }) {
+  const [result, setResult] = useState<Result | null>(null); const [error, setError] = useState("");
+  useEffect(() => { let active = true; setError(""); fetch("/api/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url }) }).then(async (res) => { const contentType = res.headers.get("content-type") ?? ""; const data = contentType.includes("application/json") ? await res.json() : null; if (!res.ok || !data) throw new Error(data?.error ?? "Endpoint live belum tersedia pada preview lokal. Deploy ke Vercel untuk mengaktifkan API verifikasi."); if (active) setResult(data); }).catch((err) => active && setError(err.message)); return () => { active = false; }; }, [url]);
+  if (error) return <section className="demo-result" aria-live="polite"><div className="demo-result__banner">Live request failed</div><h2>Artikel belum dapat dibaca</h2><p className="demo-result__notice">{error}</p><p className="demo-result__footnote">Periksa URL publik atau coba lagi. Sistem tidak mengarang hasil saat sumber tidak tersedia.</p></section>;
+  if (!result) return <section className="demo-result" aria-live="polite"><div className="demo-result__banner">Live extraction</div><h2>Membaca sumber…</h2><p className="demo-result__notice">Mengambil metadata artikel dan bukti primer.</p></section>;
+  const papers = result.medical_evidence?.pubmed_studies_found ?? [];
+  return <section className="demo-result" aria-labelledby="demo-result-title"><div className="demo-result__banner">Live result · {result.article_metadata.domain}</div><div className="demo-result__heading"><div><p className="demo-result__eyebrow">{result.category} · {result.evidence_level}</p><h2 id="demo-result-title">{result.verification_status}</h2></div><span className="demo-result__badge">{result.confidence_score}%</span></div><div className="demo-result__claim"><p className="demo-result__eyebrow">Artikel dianalisis</p><p><strong>{result.article_metadata.title}</strong><br />{result.article_metadata.extracted_claims[0]}</p></div><p className="demo-result__notice">{result.dynamic_summary}</p><div className="demo-result__details"><div><strong>Alasan & batasan bukti</strong><p>{result.detailed_debunk_reason}</p><p className="demo-small">Mode yang dipilih: {mode === "health" ? "kesehatan / PubMed" : "politik / media"}</p></div><div><strong>Rujukan primer live</strong>{papers.length ? <ul>{papers.map((paper) => <li key={paper.pmid}><a href={paper.pubmed_url} target="_blank" rel="noopener noreferrer">{paper.title}</a> · {paper.year}</li>)}</ul> : <p>Belum ada paper PubMed yang cocok. Untuk politik, hubungkan pencarian fact-check API pada deployment dengan kredensial resminya.</p>}</div></div><p className="demo-result__footnote">Hasil bersifat informasional, bukan diagnosis medis atau putusan hukum. Selalu buka dan baca sumber asli.</p></section>;
 }
