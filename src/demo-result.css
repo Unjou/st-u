@@ -144,6 +144,61 @@
   outline-offset: 2px;
 }
 
+.demo-journals {
+  margin-top: 1.5rem;
+  border: 3px solid #142334;
+  background: #fff4b8;
+  padding: 1rem;
+  box-shadow: 4px 4px 0 #142334;
+}
+
+.demo-journals h3 {
+  margin: 0 0 1rem;
+  font-size: clamp(1.25rem, 3vw, 1.8rem);
+  text-transform: uppercase;
+}
+
+.demo-journals__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.demo-journal {
+  display: flex;
+  min-height: 9rem;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.65rem;
+  border: 2px solid #142334;
+  background: #fff;
+  color: #142334;
+  padding: 1rem;
+  box-shadow: 3px 3px 0 #142334;
+  text-decoration: none;
+}
+
+.demo-journal:hover,
+.demo-journal:focus-visible {
+  background: #65c8ff;
+  outline: 2px solid #142334;
+  outline-offset: 2px;
+}
+
+.demo-journal strong { font-size: 1rem; text-transform: uppercase; }
+.demo-journal span { font-size: 0.78rem; line-height: 1.45; }
+.demo-journal small { font: 800 0.68rem ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; }
+
+.demo-danger {
+  margin: 1.25rem 0 0;
+  border: 2px solid #8d2416;
+  background: #ffd5cc;
+  padding: 0.85rem;
+  color: #67180f;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
 .demo-result__footnote {
   border-top: 1px solid #aab9c7;
   margin: 1rem 0 0;
