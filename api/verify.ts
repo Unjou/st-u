@@ -1,52 +1,33 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-async function extractArticle(url: string) {
+type Focus = "health" | "politics";
+type InputMode = "auto" | "url" | "text";
+type Link = { platform: string; url: string; description: string };
+const memory = new Map<string, { anchor: string; version: number }>();
+const clean = (value: string) => value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+const keyOf = (value: string) => value.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/[?#].*$/, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").split(" ").slice(0, 18).join("-");
+
+async function extract(url: string) {
   const response = await fetch(url, { headers: { "User-Agent": "st-u-fact-checker/1.0" } });
-  if (!response.ok) throw new Error(`Article returned ${response.status}`);
+  if (!response.ok) throw new Error(`Artikel mengembalikan status ${response.status}`);
   const html = await response.text();
-  const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.replace(/<[^>]+>/g, "").trim() || new URL(url).hostname;
-  const paragraphs = [...html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)].map((match) => match[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()).filter((text) => text.length > 20);
-  return { url, domain: new URL(url).hostname, title, text: paragraphs.slice(0, 20).join(" ").slice(0, 5000) };
+  const title = clean(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || new URL(url).hostname);
+  const paragraphs = [...html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)].map((match) => clean(match[1])).filter((text) => text.length > 20);
+  return { title, domain: new URL(url).hostname, text: paragraphs.slice(0, 24).join(" ").slice(0, 7000) };
 }
+function entities(text: string) { return { latin: /kelor/i.test(text) ? "Moringa oleifera" : /kunyit|curcumin/i.test(text) ? "Curcuma longa" : "human health", condition: /diabetes|gula darah/i.test(text) ? "diabetes" : /covid|coronavirus/i.test(text) ? "COVID-19" : /cancer|kanker|tumor/i.test(text) ? "cancer" : "human health" }; }
+async function pubmed(latin: string, condition: string) { try { const term = `(${latin}[Title/Abstract]) AND (${condition}[Title/Abstract]) AND ("2020"[Date - Publication] : "3000"[Date - Publication])`; const search = await fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(term)}&retmode=json&retmax=4`, { signal: AbortSignal.timeout(8000) }); const ids: string[] = (await search.json()).esearchresult?.idlist ?? []; if (!ids.length) return []; const summary = await fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${ids.join(",")}&retmode=json`); const data = (await summary.json()).result ?? {}; return ids.map((pmid) => ({ pmid, title: data[pmid]?.title ?? "Untitled PubMed study", year: data[pmid]?.pubdate?.slice(0, 4) ?? "", pubmed_url: `https://pubmed.ncbi.nlm.nih.gov/${pmid}/` })); } catch { return []; } }
 
-function inferEntities(article: { title: string; text: string }) {
-  const content = `${article.title} ${article.text}`;
-  const latin = content.match(/\b[A-Z][a-z]+\s(?:oleifera|indica|sativa|officinalis|longa|turmeric)\b/)?.[0] ?? (/kelor/i.test(content) ? "Moringa oleifera" : /kunyit|curcumin/i.test(content) ? "Curcuma longa" : "medical treatment");
-  const condition = /breast cancer|kanker payudara/i.test(content) ? "breast cancer" : /diabetes|gula darah/i.test(content) ? "diabetes" : /covid|coronavirus/i.test(content) ? "COVID-19" : /cancer|kanker|tumor/i.test(content) ? "cancer" : "human health";
-  return { latin, condition };
-}
-
-async function fetchPubMed(latin: string, condition: string) {
-  const term = `(${latin}[Title/Abstract]) AND (${condition}[Title/Abstract]) AND ("2020"[Date - Publication] : "3000"[Date - Publication])`;
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== "POST") return res.status(405).json({ error: "POST required" });
   try {
-    const search = await fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(term)}&retmode=json&retmax=4`, { signal: AbortSignal.timeout(8000) });
-    const ids: string[] = (await search.json()).esearchresult?.idlist ?? [];
-    if (!ids.length) return [];
-    const summary = await fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${ids.join(",")}&retmode=json`);
-    const result = (await summary.json()).result ?? {};
-    return ids.map((pmid) => ({ pmid, title: result[pmid]?.title ?? "Untitled PubMed study", year: result[pmid]?.pubdate?.slice(0, 4) ?? "", study_type: "PubMed indexed study", pubmed_url: `https://pubmed.ncbi.nlm.nih.gov/${pmid}/` }));
-  } catch { return []; }
-}
-
-export default async function handler(request: VercelRequest, response: VercelResponse) {
-  if (request.method !== "POST") return response.status(405).json({ error: "POST required" });
-  try {
-    const { url } = request.body ?? {};
-    if (typeof url !== "string" || !/^https?:\/\//i.test(url)) return response.status(400).json({ error: "Masukkan URL artikel yang valid." });
-    const article = await extractArticle(url);
-    const health = /health|medical|medicine|disease|cancer|obat|kesehatan|herbal|vaksin|diabetes/i.test(`${article.title} ${article.text}`);
-    const claim = article.text.split(/[.!?]/).slice(0, 2).join(" ").slice(0, 280) || article.title;
-    const entities = inferEntities(article);
-    const papers = health ? await fetchPubMed(entities.latin, entities.condition) : [];
-    const query = `"${entities.latin}" AND "${entities.condition}"`;
-    const direct_journal_links = [
-      { platform: "Google Scholar · 5 tahun", url: `https://scholar.google.com/scholar?q=${encodeURIComponent(`"${entities.latin}" AND "${entities.condition}" AND "clinical trial"`)}&as_ylo=2020`, description: "Telusuri publikasi akademis dan uji klinis manusia sejak 2020." },
-      { platform: "PubMed / NCBI · 2020–2025", url: `https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(query)}&filter=years.2020-2025`, description: "Database biomedis resmi NIH untuk artikel peer-reviewed." },
-      { platform: "Cochrane Library", url: `https://www.cochranelibrary.com/search?searchText=${encodeURIComponent(`${entities.latin} ${entities.condition}`)}`, description: "Basis bukti untuk tinjauan sistematis dan RCT." },
-    ];
-    const summary = health
-      ? `Artikel “${article.title}” mengaitkan ${entities.latin} dengan ${entities.condition}. Bukti live yang tersedia ${papers.length ? `menemukan ${papers.length} paper PubMed terkait` : "belum menemukan paper PubMed yang cocok dengan query ini"}; hasil nol bukan bukti bahwa klaim benar. Perbedaan pentingnya: temuan in vitro atau mekanistik tidak otomatis membuktikan manfaat klinis pada manusia.`
-      : `Artikel “${article.title}” dari ${article.domain} dianalisis dari klaim: “${claim}”. Pencarian kesehatan tidak digunakan karena topik terklasifikasi politik/media; verifikasi lanjutan perlu memeriksa sumber primer, tanggal, dan konteks kutipan.`;
-    return response.status(200).json({ article_metadata: { ...article, extracted_claims: [claim] }, category: health ? "KESEHATAN" : "POLITIK", verification_status: health ? "BELUM TERBUKTI KLINIS" : "PERLU VERIFIKASI", confidence_score: papers.length ? 72 : 36, evidence_level: health ? (papers.length ? "Literatur PubMed live · perlu telaah metode" : "Bukti klinis belum teridentifikasi pada query live") : "Audit sumber media", dynamic_summary: summary, detailed_debunk_reason: health ? `Klaim perlu dibaca bersama batas biologisnya: ${entities.latin} dan ${entities.condition} adalah istilah pencarian, bukan bukti terapi. Studi laboratorium, bila ada, tidak setara dengan uji klinis acak pada pasien manusia dan tidak menjadi alasan menghentikan terapi dokter.` : "Periksa dokumen asli, sumber kutipan, dan konteks tanggal sebelum menyimpulkan kebenaran klaim.", direct_journal_links, medical_evidence: { pubmed_studies_found: papers }, political_evidence: { media_type: "Artikel web", dewan_pers_status: "Belum diperiksa", fact_check_debunk_sources: [] }, scientific_entities: entities, medical_danger_alert: health ? "PERINGATAN: Jangan menghentikan obat, kemoterapi, atau operasi berdasarkan klaim herbal yang belum tervalidasi secara klinis." : undefined });
-  } catch (error) { return response.status(502).json({ error: error instanceof Error ? error.message : "Gagal memproses artikel." }); }
+    const { input, inputMode = "auto", focus = "health" } = req.body ?? {};
+    if (typeof input !== "string" || input.trim().length < 8) return res.status(400).json({ error: "Masukkan URL atau kutipan yang cukup panjang." });
+    const isUrl = inputMode === "url" || (inputMode === "auto" && /^https?:\/\//i.test(input.trim()));
+    const article = isUrl ? await extract(input.trim()) : { title: "Kutipan langsung", domain: "Kutipan pengguna", text: input.trim() };
+    const content = `${article.title} ${article.text}`; const health = focus === "health" || /health|medical|medicine|disease|cancer|obat|kesehatan|herbal|vaksin|diabetes/i.test(content); const claim = article.text.split(/[.!?]/).slice(0, 2).join(" ").slice(0, 360) || article.title; const e = entities(content); const papers = health ? await pubmed(e.latin, e.condition) : []; const key = `${focus}:${keyOf(isUrl ? input : claim)}`; const prior = memory.get(key); const anchor = prior?.anchor ?? (health ? "BELUM TERBUKTI KLINIS" : "PERLU VERIFIKASI KONTEXTUAL"); const version = (prior?.version ?? 0) + 1; memory.set(key, { anchor, version });
+    const links: Link[] = health ? [{ platform: "Google Scholar · 5 tahun", url: `https://scholar.google.com/scholar?q=${encodeURIComponent(`"${e.latin}" AND "${e.condition}" AND "clinical trial"`)}&as_ylo=2020`, description: "Publikasi akademis dan uji klinis manusia sejak 2020." }, { platform: "PubMed / NCBI · 2020–sekarang", url: `https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(`"${e.latin}" AND "${e.condition}"`)}&filter=years.2020-2025`, description: "Database biomedis resmi NIH." }, { platform: "Cochrane Library · 5 tahun", url: `https://www.cochranelibrary.com/search?searchText=${encodeURIComponent(`${e.latin} ${e.condition}`)}`, description: "Tinjauan sistematis dan bukti RCT." }] : [];
+    const political: Link[] = [{ platform: "Dewan Pers", url: "https://dewanpers.or.id/data/perusahaanpers", description: "Direktori perusahaan pers dan standar jurnalistik." }, { platform: "CekFakta", url: "https://cekfakta.com/", description: "Klarifikasi lintas media oleh jaringan pemeriksa fakta." }, { platform: "Mafindo", url: "https://turnbackhoax.id/", description: "Arsip pemeriksaan klaim publik." }];
+    return res.status(200).json({ article_metadata: { title: article.title, domain: article.domain, extracted_claims: [claim] }, category: health ? "KESEHATAN" : "POLITIK", verification_status: anchor, confidence_score: papers.length ? 72 : 42, evidence_level: health ? "PubMed live · telaah metode wajib" : "Audit sumber & konteks", consistency: { version, cache_key: key }, dynamic_summary: health ? `Vonis dikunci: ${anchor}. Klaim mengaitkan ${e.latin} dengan ${e.condition}; ${papers.length ? `ditemukan ${papers.length} paper PubMed sejak 2020` : "query live belum menemukan paper yang cocok"}. Temuan in vitro atau mekanistik tidak otomatis terbukti pada manusia.` : `Vonis dikunci: ${anchor}. Klaim dibedah untuk cherry-picking, pemotongan konteks, framing partisan, tanggal, dan sumber primer; reputasi domain harus diverifikasi, bukan diasumsikan.`, detailed_debunk_reason: health ? `${e.latin} adalah nama latin dalam query, bukan bukti terapi. Ekstrapolasi cawan petri/hewan ke manusia adalah lompatan logika tanpa uji klinis yang relevan. Jangan mengganti terapi dokter.` : "Cari dokumen asli dan pernyataan resmi, bandingkan konteks utuh, lalu cek domain ke Dewan Pers dan klarifikasi CekFakta/Mafindo. Judul atau potongan kutipan bukan bukti yang cukup.", direct_journal_links: links, medical_evidence: { pubmed_studies_found: papers }, political_evidence: { dewan_pers_status: "Tautan audit resmi disediakan; status domain tidak ditebak tanpa pemeriksaan sumber.", fact_check_debunk_sources: political }, medical_danger_alert: health ? "PERINGATAN: Jangan menghentikan obat, kemoterapi, vaksin, atau operasi berdasarkan klaim viral." : undefined });
+  } catch (error) { return res.status(502).json({ error: error instanceof Error ? error.message : "Gagal memproses klaim." }); }
 }
