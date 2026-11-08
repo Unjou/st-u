@@ -208,8 +208,52 @@
   line-height: 1.5;
 }
 
+@media (min-width: 701px) {
+  .demo-result {
+    padding: clamp(1.5rem, 3vw, 2.5rem);
+  }
+
+  .demo-journals {
+    padding: 1.5rem;
+  }
+
+  .demo-journal {
+    min-height: 13rem;
+    padding: 1.25rem;
+  }
+
+  .demo-journal strong {
+    font-size: clamp(1.05rem, 1.8vw, 1.35rem);
+  }
+
+  .demo-journal span {
+    font-size: 0.95rem;
+  }
+
+  .demo-journal small {
+    font-size: 0.75rem;
+  }
+}
+
 @media (max-width: 700px) {
-  .demo-result__details {
+  .demo-result__details,
+  .demo-journals__grid {
     grid-template-columns: 1fr;
+  }
+
+  .demo-result__heading {
+    flex-direction: column;
+  }
+
+  .demo-result__badge {
+    align-self: flex-start;
+  }
+
+  .demo-journals {
+    padding: 0.85rem;
+  }
+
+  .demo-journal {
+    min-height: 11rem;
   }
 }
